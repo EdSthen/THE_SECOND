@@ -1,0 +1,7 @@
+#include <iostream>
+#include <vector>
+#include <string>
+
+int main() {
+    std::cout << 1 << " " << 2 << std::endl;
+}
