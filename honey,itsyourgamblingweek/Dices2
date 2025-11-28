@@ -1,0 +1,151 @@
+#include <random>
+#include <memory>
+#include <vector>
+#include <iostream>
+#include <algorithm>
+#include <map>
+#include <iomanip>
+
+class RandomVariable {
+public:
+    virtual ~RandomVariable() = default;
+    virtual unsigned roll() = 0;
+};
+class Dice : public RandomVariable {
+public:
+    Dice(unsigned max, unsigned seed = std::random_device{}()) :
+        max(max), dstr(1, max), reng(seed) {}
+    
+    unsigned roll() override {
+        return dstr(reng);
+    }
+    
+    unsigned getMax() const { return max; }
+
+private:
+    unsigned max;
+    std::uniform_int_distribution<unsigned> dstr;
+    std::default_random_engine reng;
+};
+class ThreeDicePool : public RandomVariable {
+public:
+    ThreeDicePool(unsigned max, 
+                  unsigned seed_1 = std::random_device{}(), 
+                  unsigned seed_2 = std::random_device{}(), 
+                  unsigned seed_3 = std::random_device{}()) :
+        dice_1(std::make_unique<Dice>(max, seed_1)),
+        dice_2(std::make_unique<Dice>(max, seed_2)),
+        dice_3(std::make_unique<Dice>(max, seed_3)) {}
+    
+    unsigned roll() override {
+        return dice_1->roll() + dice_2->roll() + dice_3->roll();
+    }
+
+private:
+    std::unique_ptr<Dice> dice_1;
+    std::unique_ptr<Dice> dice_2;
+    std::unique_ptr<Dice> dice_3;
+};
+class PenaltyDice : public RandomVariable {
+public:
+    PenaltyDice(std::unique_ptr<RandomVariable> dice) : dice(std::move(dice)) {}
+    
+    unsigned roll() override {
+        unsigned first_roll = dice->roll();
+        unsigned second_roll = dice->roll();
+        return std::min(first_roll, second_roll);
+    }
+
+private:
+    std::unique_ptr<RandomVariable> dice;
+};
+
+class BonusDice : public RandomVariable {
+public:
+    BonusDice(std::unique_ptr<RandomVariable> dice) : dice(std::move(dice)) {}
+    
+    unsigned roll() override {
+        unsigned first_roll = dice->roll();
+        unsigned second_roll = dice->roll();
+        return std::max(first_roll, second_roll); 
+    }
+
+private:
+    std::unique_ptr<RandomVariable> dice;
+};
+
+double value_probability(unsigned value, RandomVariable &rv, unsigned number_of_rolls = 10000) {
+    unsigned count = 0;
+    for (unsigned i = 0; i < number_of_rolls; ++i) {
+        if (rv.roll() == value) {
+            ++count;
+        }
+    }
+    return static_cast<double>(count) / static_cast<double>(number_of_rolls);
+}
+
+void print_histogram(RandomVariable &rv, unsigned min_value, unsigned max_value, 
+                     const std::string& title, unsigned number_of_rolls = 10000) {
+    std::cout << "\n" << title << std::endl;
+    
+    for (unsigned value = min_value; value <= max_value; ++value) {
+        double prob = value_probability(value, rv, number_of_rolls);
+        std::cout << std::fixed << std::setprecision(4) << prob << " ";
+        int bars = static_cast<int>(prob * 200);
+        for (int i = 0; i < bars; ++i) {
+            std::cout << "█";
+        }
+        std::cout << " | " << value << std::endl;
+    }
+}
+
+int main() {
+    const unsigned NUM_ROLLS = 50000;
+    
+    std::cout << "\n Один кубик" << std::endl;
+    
+    auto regular_dice_100 = std::make_unique<Dice>(100);
+    auto penalty_dice_100 = std::make_unique<PenaltyDice>(std::make_unique<Dice>(100));
+    auto bonus_dice_100 = std::make_unique<BonusDice>(std::make_unique<Dice>(100));
+    
+    std::vector<unsigned> sample_values = {1, 25, 50, 75, 100};
+    
+    std::cout << "Значение | Обычный  | Помеха   | Преимущество" << std::endl;
+    
+    for (unsigned value : sample_values) {
+        double prob_regular = value_probability(value, *regular_dice_100, NUM_ROLLS);
+        double prob_penalty = value_probability(value, *penalty_dice_100, NUM_ROLLS);
+        double prob_bonus = value_probability(value, *bonus_dice_100, NUM_ROLLS);
+        
+        std::cout << value << "\t | " << prob_regular 
+                  << " | " << prob_penalty 
+                  << " | " << prob_bonus << std::endl;
+    }
+
+
+    std::cout << "\n\nТРИ" << std::endl;
+    
+    auto regular_three_dice = std::make_unique<ThreeDicePool>(6);
+    auto penalty_three_dice = std::make_unique<PenaltyDice>(std::make_unique<ThreeDicePool>(6));
+    auto bonus_three_dice = std::make_unique<BonusDice>(std::make_unique<ThreeDicePool>(6));
+    // BonusDice b(std::make_unique<Dice>(1,2));
+    // PenaltyDice p(std::unique_ptr<BonusDice>(&b));
+    // ThreeDicePool tdp(BonusDice, PenaltyDice, Dice);
+    print_histogram(*regular_three_dice, 3, 18, "скучный ", 20000);
+    print_histogram(*penalty_three_dice, 3, 18, "помеха ", 20000);
+    print_histogram(*bonus_three_dice, 3, 18, "преимущество ", 20000);
+    
+    std::cout << "\n\nМат.Ожидания" << std::endl;
+    
+    auto expected_value = [](RandomVariable &rv, unsigned rolls = 10000) {
+        double sum = 0;
+        for (unsigned i = 0; i < rolls; ++i) {
+            sum += rv.roll();
+        }
+        return sum / rolls;
+    };
+    
+    std::cout << "Обычный( " << expected_value(*regular_three_dice) << std::endl;
+    std::cout << "Помеха " << expected_value(*penalty_three_dice) << std::endl;
+    std::cout << "Преимущество " << expected_value(*bonus_three_dice) << std::endl;
+}
