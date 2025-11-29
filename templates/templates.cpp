@@ -1,6 +1,31 @@
 #include <utility>
 #include <cstddef>
+#include <iostream>
 
+template<typename T, std::size_t N>
+class Array {
+private:
+    T data[N];
+public:
+    Array() = default;
+    Array(const T& value) {
+        for (std::size_t i = 0; i < N; ++i) {
+            data[i] = value;
+        }
+    }
+    
+    T& operator[](std::size_t index) { return data[index]; }
+    const T& operator[](std::size_t index) const { return data[index]; }
+    
+    T* begin() { return data; }
+    const T* begin() const { return data; }
+    T* end() { return data + N; }
+    const T* end() const { return data + N; }
+    
+    std::size_t size() const { return N; }
+};
+
+// 1
 template<typename T>
 class ScopePtr {
 private:
@@ -20,7 +45,7 @@ public:
         std::swap(m_ptr, other.m_ptr);
         return *this;
     }
-    explicit operator bool() const { return nullptr != m_ptr; } //я тут сделал != иначе тупо как-то
+    explicit operator bool() const { return nullptr != m_ptr; }
     T& operator*() const { return *m_ptr; }
     T* operator->() const { return m_ptr; }
     T* get() const { return m_ptr; }
@@ -73,8 +98,7 @@ public:
     ~ScopePtr() { delete[] m_ptr; }
 };
 
-//2
-
+// 2
 template<typename T, typename U>
 struct is_same {
     static constexpr bool value = false;
@@ -85,8 +109,7 @@ struct is_same<T, T> {
     static constexpr bool value = true;
 };
 
-//3
-
+// 3
 template<typename... Types>
 struct are_same;
 
@@ -100,30 +123,27 @@ struct are_same<T, U, Rest...> {
     static constexpr bool value = is_same<T, U>::value && are_same<T, Rest...>::value;
 };
 
-//4
-
+// 4
 template<typename T, std::size_t N>
 constexpr std::size_t size(const Array<T, N>&) {
     return N;
 }
 
-//5
-
+// 5
 template<typename Func, typename... Args>
 auto invoke(Func func, Args&&... args) -> decltype(func(std::forward<Args>(args)...)) {
     return func(std::forward<Args>(args)...);
 }
 
-//6
-
+// 6
 template<typename T>
-void flatten(const T& elem) {
-    std::cout << elem << " ";
+void flatten(const T& elem, std::ostream& out = std::cout) {
+    out << elem << " ";
 }
 
-template<typename T>
-void flatten(const Array<T>& array) {
+template<typename T, std::size_t N>
+void flatten(const Array<T, N>& array, std::ostream& out = std::cout) {
     for (const auto& elem : array) {
-        flatten(elem);
+        flatten(elem, out);
     }
 }
